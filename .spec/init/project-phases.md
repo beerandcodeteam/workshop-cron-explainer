@@ -250,20 +250,20 @@ Não há fase de banco de dados nem de models: o `database-schema.md` declara **
 
 ### Phase 4.1: Gates automáticos
 
-- [ ] **Task:** Rodar Pint e corrigir toda a formatação
+- [x] **Task:** Rodar Pint e corrigir toda a formatação
   - **Acceptance criteria:**
     - `vendor/bin/sail bin pint --format agent` executado, sem arquivos pendentes de correção depois
     - Convenções de PHP do projeto respeitadas: chaves obrigatórias em estruturas de controle, tipos explícitos de parâmetro e retorno, promoção de propriedades no construtor, PHPDoc no lugar de comentário inline
   - **Traces:** US-1.1, US-2.3
 
-- [ ] **Task:** Rodar Larastan e zerar os erros
+- [x] **Task:** Rodar Larastan e zerar os erros
   - **Acceptance criteria:**
     - `vendor/bin/sail php vendor/bin/phpstan analyse` sem erros no level 7
     - `app/`, `config/` e `routes/` limpos — inclui `app/Ai/Agents/CronExplainer.php` e `config/cron-explainer.php`
     - Registrar explicitamente que o componente SFC em `resources/views/pages/` **não** é analisado, por estar fora dos `paths` do `phpstan.neon`; nenhum path novo é adicionado sem aprovação
   - **Traces:** US-1.2, US-2.1
 
-- [ ] **Task:** Rodar a suíte completa e o build de produção
+- [x] **Task:** Rodar a suíte completa e o build de produção
   - **Acceptance criteria:**
     - `vendor/bin/sail artisan test --compact` verde, sem teste pulado
     - `vendor/bin/sail npm run build` conclui e gera `public/build/manifest.json`
@@ -272,7 +272,7 @@ Não há fase de banco de dados nem de models: o `database-schema.md` declara **
 
 ### Phase 4.2: Verificação manual dos critérios de aceite
 
-- [ ] **Task:** Percorrer os critérios de aceite das 6 user stories com chave real
+- [x] **Task:** Percorrer os critérios de aceite das 6 user stories com chave real
   - **Acceptance criteria:**
     - Com `OPENAI_API_KEY` válida, testar `0 3 * * 1-5`, `*/15 2-6 * * 0`, `@daily` e `0 0 1 * *` — todos retornam explicação em pt-BR e 5 datas futuras coerentes
     - Testar `70 3 * * *` — retorna erro citando campo minuto e o intervalo 0–59, sem lista de execuções
@@ -281,7 +281,7 @@ Não há fase de banco de dados nem de models: o `database-schema.md` declara **
     - **Registrar** quaisquer datas incorretas observadas em `0 0 31 * *` ou em combinações de dia-do-mês com dia-da-semana — é o risco conhecido de a IA calcular calendário
   - **Traces:** US-1.1, US-1.2, US-1.3, US-2.1, US-2.2, US-2.3
 
-- [ ] **Task:** Verificar o comportamento de segurança em falha
+- [x] **Task:** Verificar o comportamento de segurança em falha
   - **Acceptance criteria:**
     - Com `OPENAI_API_KEY` inválida, a página mostra a mensagem genérica e nada além dela
     - Com `APP_DEBUG=true` e chave inválida, a página continua mostrando a mensagem genérica, não a tela de erro do Laravel
@@ -289,6 +289,81 @@ Não há fase de banco de dados nem de models: o `database-schema.md` declara **
     - Inspecionar o HTML servido: nenhuma ocorrência da chave de API, de nome de exception ou de caminho de arquivo do servidor
   - **Feature tests:** cobertos pelos testes de US-2.3 na Phase 3.1; esta tarefa é a confirmação manual em runtime real
   - **Traces:** US-2.3
+
+### Registro da verificação — executada em 2026-08-19 (America/Sao_Paulo)
+
+Ambiente: Sail, `APP_DEBUG=true`, chave real da OpenAI em `.env`, modelo `gpt-5.6-terra`.
+Método: round-trip HTTP real contra `POST /livewire-6df161ae/update` (não `Livewire::test()`),
+inspecionando o HTML efetivamente servido.
+
+**Gates automáticos (4.1)** — Pint `passed`; Larastan level 7 `0 errors`; suíte `25/25`,
+0 pulados, 106 asserções; `npm run build` gerou `public/build/manifest.json`.
+
+Cobertura do Larastan confirmada empiricamente: um erro de tipo plantado em
+`app/Ai/Agents/CronExplainer.php` e em `config/cron-explainer.php` é acusado; o mesmo erro
+plantado no bloco PHP de `resources/views/pages/⚡cron-explainer.blade.php` passa batido —
+o SFC está fora dos `paths` do `phpstan.neon` e nenhum path novo foi adicionado.
+
+A suíte roda sem chave: `phpunit.xml` agora zera `OPENAI_API_KEY` com `force="true"`, e
+`tests/Feature/AmbienteDeTesteTest.php` trava esse invariante. Verificado rodando a suíte
+com uma chave exportada no shell — os testes continuam vendo string vazia.
+
+**Expressões válidas (4.2)** — todas com explicação em pt-BR e 5 datas futuras. Cada dia da
+semana renderizado foi conferido contra cálculo independente de calendário; todos batem.
+
+| Expressão | Explicação | Datas |
+| --- | --- | --- |
+| `0 3 * * 1-5` | "Às 3h da manhã, de segunda a sexta-feira." | 20, 21, 24, 25, 26/08 às 03:00 — pula sáb 22 e dom 23 ✅ |
+| `*/15 2-6 * * 0` | "A cada 15 minutos, entre 2h e 6h, todos os domingos." | 23/08 (domingo) 02:00→03:00 de 15 em 15 ✅ |
+| `@daily` | "Todos os dias à meia-noite." | 20 a 24/08 às 00:00 ✅ |
+| `0 0 1 * *` | "À meia-noite do dia 1º de todos os meses." | 01/09, 01/10, 01/11, 01/12/2026, 01/01/2027 ✅ |
+| `@monthly` | "À meia-noite do primeiro dia de cada mês." | idêntico a `0 0 1 * *` ✅ |
+
+**Expressão inválida** — `70 3 * * *` devolveu
+"Campo minuto inválido: 70. Valores aceitos: 0 a 59.", `proximasExecucoes` vazio, bloco
+"Próximas execuções" ausente da página. ✅
+
+**Bloqueio local** — campo vazio e campo só com espaços renderizaram "Digite uma expressão
+cron para explicar." em ~60 ms, sem escrever nada em `storage/logs/laravel.log` e sem
+qualquer requisição ao provider. ✅
+
+**Risco conhecido de calendário — nenhuma data incorreta observada.**
+
+- `0 0 31 * *` → 31/08, 31/10, 31/12/2026, 31/01, 31/03/2027. Pulou corretamente setembro,
+  novembro e fevereiro. ✅
+- `0 0 13 * 5` (dia-do-mês + dia-da-semana) → sextas 21/08, 28/08, 04/09, 11/09 **e**
+  domingo 13/09. Aplicou a semântica OR do cron, explicou-a em português e ordenou certo. ✅
+- `0 0 29 2 *` → 29/02 de 2028, 2032, 2036, 2040, 2044. Anos bissextos corretos. ✅
+
+Único desvio observado: `0 0 31 4 *` foi **recusado** como inválido
+("Campo dia-do-mês inválido para o mês 4: 31. Valores aceitos: 1 a 30."). O cron real aceita
+a expressão — ela apenas nunca dispara. O comportamento é mais amigável que o do cron, mas
+diverge dele; não afeta nenhum exemplo do workshop. A decisão de não usar
+`dragonmantank/cron-expression` **não precisa ser reaberta** com base nesta rodada.
+
+**Segurança em falha (4.2)** — com chave inválida e `APP_DEBUG=true`, a resposta foi HTTP 200
+com `falhaDeIa: true`, `explicacao: null`, `erro: null`. A página exibiu apenas
+"Falha temporária / Não foi possível interpretar a expressão agora. Tente novamente em
+instantes." — não a tela de erro do Laravel. Varredura do corpo JSON inteiro e do HTML
+renderizado não encontrou: a chave em uso, o prefixo `sk-proj-`, a chave real do `.env`,
+`/var/www/html`, `vendor/laravel`, `Exception`, `Throwable`, stack trace, `Laravel\Ai`,
+`401`, `Incorrect API key` ou `Unauthorized`. ✅
+`storage/logs/laravel.log` recebeu o detalhe técnico: `local.ERROR: Falha ao interpretar
+expressão cron.` com `Illuminate\Http\Client\RequestException (code: 401)` e stack trace.
+
+⚠️ Achado colateral: a mensagem de 401 da OpenAI **ecoa a API key**, e o
+`Log::error(..., ['exception' => $e])` a grava em claro no log. A página não vaza nada, mas
+`storage/logs/` passa a conter a chave. Registrado em `.ai/rules/config.md`. Se uma chave
+real for recusada (revogada ou rotacionada), ela fica em claro no arquivo — não publique o
+log sem redigir `sk-[A-Za-z0-9_-]+`.
+
+**Identificador do modelo** — `gpt-5.6-terra` existe e respondeu; a Open Question sobre ele
+está resolvida. **Migrations do `laravel/ai`** — `prompt()` com structured output funcionou
+sem nenhuma tabela do pacote; o fallback SQLite não foi necessário. **Identificador da rota**
+— `pages::cron-explainer` resolveu sem ajuste.
+
+---
+
 
 ## Open Questions
 
