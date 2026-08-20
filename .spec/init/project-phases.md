@@ -351,11 +351,24 @@ renderizado não encontrou: a chave em uso, o prefixo `sk-proj-`, a chave real d
 `storage/logs/laravel.log` recebeu o detalhe técnico: `local.ERROR: Falha ao interpretar
 expressão cron.` com `Illuminate\Http\Client\RequestException (code: 401)` e stack trace.
 
-⚠️ Achado colateral: a mensagem de 401 da OpenAI **ecoa a API key**, e o
-`Log::error(..., ['exception' => $e])` a grava em claro no log. A página não vaza nada, mas
-`storage/logs/` passa a conter a chave. Registrado em `.ai/rules/config.md`. Se uma chave
-real for recusada (revogada ou rotacionada), ela fica em claro no arquivo — não publique o
-log sem redigir `sk-[A-Za-z0-9_-]+`.
+⚠️ Achado colateral: a mensagem de 401 da OpenAI **ecoa um fragmento da API key**, e o
+`Log::error(..., ['exception' => $e])` o grava no log. A OpenAI mascara o miolo — o que
+chega ao arquivo é `sk-proj-*******************************ase4`, ou seja, prefixo mais os
+4 últimos caracteres, **não** a chave inteira. A página não vaza nada, mas `storage/logs/`
+passa a conter esse fragmento, stack trace e caminhos `/var/www/html/vendor/...`. Registrado
+em `.ai/rules/config.md`. Não publique o log sem redigir `sk-[A-Za-z0-9_-]+`.
+
+**Revalidação (mesma data, sessão posterior)** — os quatro gates foram reexecutados do zero:
+Pint `passed`, Larastan level 7 `0 errors`, suíte `25/25` com `OPENAI_API_KEY=sk-should-not-be-used`
+exportada no shell (os testes seguiram vendo string vazia), `public/build/` apagado e
+reconstruído. Todas as expressões acima foram resubmetidas por round-trip HTTP real com a
+chave válida e devolveram os mesmos resultados; cada dia da semana renderizado foi conferido
+contra `date -d`. `0 0 31 4 *` voltou a ser recusado — o desvio é estável, não intermitente.
+Campo vazio e campo com espaços responderam em 19 ms e 14 ms com `laravel.log` em 0 linhas,
+provando ausência de chamada à IA. O teste de chave inválida foi refeito com `APP_DEBUG=true`:
+mesma mensagem genérica, e a varredura do corpo servido (3.913 bytes) por
+`sk-[A-Za-z0-9_-]{4,}`, `/var/www`, `vendor/`, `Exception`, `Throwable`, `Stack trace`, `401`,
+`Unauthorized`, `Incorrect API key` e `Laravel\Ai` não retornou nenhuma ocorrência.
 
 **Identificador do modelo** — `gpt-5.6-terra` existe e respondeu; a Open Question sobre ele
 está resolvida. **Migrations do `laravel/ai`** — `prompt()` com structured output funcionou
