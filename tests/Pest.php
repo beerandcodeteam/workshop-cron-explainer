@@ -14,7 +14,7 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
-    ->in('Feature');
+    ->in('Feature', __DIR__.'/../resources/views');
 
 /*
 |--------------------------------------------------------------------------
