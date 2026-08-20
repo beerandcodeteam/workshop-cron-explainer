@@ -1,4 +1,5 @@
 <?php
+
 const MAX_TRIES = 3;
 
 function claude(string $prompt, string $extra = '', bool $capture = false): string
@@ -16,7 +17,7 @@ function claude(string $prompt, string $extra = '', bool $capture = false): stri
     return (string) shell_exec($cmd.' 2>&1');
 }
 
-$file = file_get_contents(".spec/init/project-phases.md");
+$file = file_get_contents('.spec/init/project-phases.md');
 
 $phases = preg_match_all(
     '/^## Phase \d+:.*?(?=^## Phase \d+:|\z)/ms',
@@ -78,7 +79,7 @@ foreach ($phases as $phase) {
 
         if (preg_match('/^DONE/m', $veridct)) {
             echo "    avaliador OK\n";
-            exec('git add -A && git commit -q -m '.escapeshellarg("feat: $titulo").' 2>&1');
+            exec('git add -A && git commit -q -m '.escapeshellarg("feat: $title").' 2>&1');
             break;
         }
 
@@ -92,4 +93,3 @@ foreach ($phases as $phase) {
     }
 
 }
-
